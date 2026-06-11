@@ -18,7 +18,7 @@ def generate_pika_video(
     aspect_ratio: str = "9:16",
     duration: int = 7,
     poll_interval: float = 4.0,
-    max_wait: float = 300.0,
+    max_wait: float = 600.0,
 ) -> Path:
     headers = {
         "Authorization": f"Key {fal_key}",
