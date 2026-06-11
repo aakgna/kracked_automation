@@ -165,9 +165,11 @@ def render_video(
         video_path, audio_path, music_path, output_path, audio_duration, music_volume, subtitle_path
     )
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=300)
     except FileNotFoundError:
         raise VideoEditorError("ffmpeg not found. Install FFmpeg: brew install ffmpeg")
+    except subprocess.TimeoutExpired:
+        raise VideoEditorError("FFmpeg timed out after 300s — video may be too large")
     except subprocess.CalledProcessError as e:
         last_lines = "\n".join(e.stderr.splitlines()[-20:])
         raise VideoEditorError(f"FFmpeg failed:\n{last_lines}") from e

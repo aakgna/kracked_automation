@@ -344,8 +344,11 @@ def _run_pipeline(video_id: str, uid: str, user: dict, mode: str = "pika") -> No
 
         update_video_job(video_id, status="ready", localVideoPath=str(output_path))
 
-    except (ScriptGenerationError, AudioGenerationError, PikaGenerationError, VideoEditorError, Exception) as e:
-        update_video_job(video_id, status="failed", errorMessage=str(e))
+    except Exception as e:
+        try:
+            update_video_job(video_id, status="failed", errorMessage=str(e))
+        except Exception:
+            pass
     finally:
         for p in [tmp_audio, subtitle_path]:
             if p and Path(p).exists():

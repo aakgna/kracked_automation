@@ -51,12 +51,14 @@ def fetch_brainrot_video(pexels_key: str, output_path: Path) -> Path:
 
     video = random.choice(videos)
 
-    # Pick highest quality video file available
-    files = sorted(video.get("video_files", []), key=lambda f: f.get("width", 0) * f.get("height", 0), reverse=True)
-    if not files:
+    # Pick best file at HD or below (avoid huge 4K files that slow FFmpeg)
+    files = video.get("video_files", [])
+    hd_files = [f for f in files if f.get("height", 0) <= 1080 and f.get("height", 0) >= 480]
+    chosen_files = sorted(hd_files or files, key=lambda f: f.get("width", 0) * f.get("height", 0), reverse=True)
+    if not chosen_files:
         raise PexelsFetchError("No video files in Pexels result")
 
-    video_url = files[0]["link"]
+    video_url = chosen_files[0]["link"]
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     dl = requests.get(video_url, timeout=120, stream=True)
