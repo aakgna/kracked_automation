@@ -5,5 +5,8 @@ __pycache__/
 *.pyc
 .DS_Store
 videos/*.mp4
+videos/*.MP4
 videos/*.mov
+videos/*.MOV
 videos/*.mkv
+videos/*.MKV
