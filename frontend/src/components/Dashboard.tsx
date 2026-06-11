@@ -49,14 +49,17 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
           )
         );
         setVideos(updated);
-      }, 5000);
+      }, 3000);
     } else if (!inProgress && pollingRef.current) {
       clearInterval(pollingRef.current);
       pollingRef.current = null;
     }
 
     return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
     };
   }, [videos]);
 
