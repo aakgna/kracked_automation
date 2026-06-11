@@ -1,11 +1,10 @@
 {
-  "rewrites": [{ "source": "/((?!.*\\.(txt|html|ico|svg|png|jpg|js|css|woff2?|map)$).*)", "destination": "/index.html" }],
-  "headers": [
+  "routes": [
+    { "src": "/tiktok4bPzfmWdUzy1YMqLQIqyFs8hA8HjSJSB.txt", "dest": "/tiktok4bPzfmWdUzy1YMqLQIqyFs8hA8HjSJSB.txt" },
     {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin-allow-popups" }
-      ]
+      "src": "/(.*)",
+      "dest": "/index.html",
+      "headers": { "Cross-Origin-Opener-Policy": "same-origin-allow-popups" }
     }
   ]
 }
