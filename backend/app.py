@@ -34,6 +34,22 @@ if _frontend_url:
     _allowed_origins.append(_frontend_url)
 CORS(app, supports_credentials=True, origins=_allowed_origins)
 
+
+@app.after_request
+def _add_cors(response):
+    origin = request.headers.get("Origin", "")
+    if origin in _allowed_origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    return response
+
+
+@app.route("/api/<path:path>", methods=["OPTIONS"])
+def _options_handler(path):
+    return "", 204
+
 OUTPUT_DIR = Path(__file__).parent / "output"
 MUSIC_DIR = Path(__file__).parent / "music"
 OUTPUT_DIR.mkdir(exist_ok=True)
