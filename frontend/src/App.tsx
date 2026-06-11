@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "firebase/auth";
+import { signInWithPopup, onAuthStateChanged, signOut } from "firebase/auth";
 import type { User } from "firebase/auth";
 import { auth, googleProvider } from "./firebase";
 import { getMe } from "./api";
@@ -16,9 +16,6 @@ export default function App() {
   const [apiError, setApiError] = useState("");
 
   useEffect(() => {
-    // Handle redirect result on page load (after Google sign-in redirect)
-    getRedirectResult(auth).catch(() => {});
-
     return onAuthStateChanged(auth, async (user) => {
       setFbUser(user);
       if (!user) {
@@ -42,7 +39,11 @@ export default function App() {
   }
 
   async function handleSignIn() {
-    await signInWithRedirect(auth, googleProvider);
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   async function handleSignOut() {
