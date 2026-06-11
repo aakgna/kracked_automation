@@ -1,5 +1,5 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "rewrites": [{ "source": "/((?!.*\\.(txt|html|ico|svg|png|jpg|js|css|woff2?|map)$).*)", "destination": "/index.html" }],
   "headers": [
     {
       "source": "/(.*)",
