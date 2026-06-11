@@ -7,12 +7,13 @@ import OnboardingForm from "./components/OnboardingForm";
 import Dashboard from "./components/Dashboard";
 import "./App.css";
 
-type AppState = "loading" | "signed-out" | "onboarding" | "dashboard";
+type AppState = "loading" | "signed-out" | "onboarding" | "dashboard" | "error";
 
 export default function App() {
   const [fbUser, setFbUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [appState, setAppState] = useState<AppState>("loading");
+  const [apiError, setApiError] = useState("");
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (user) => {
@@ -31,8 +32,9 @@ export default function App() {
       const data = await getMe();
       setProfile(data);
       setAppState(data.productDescription ? "dashboard" : "onboarding");
-    } catch {
-      setAppState("signed-out");
+    } catch (e: any) {
+      setApiError(e.message ?? "Failed to reach backend. Check VITE_API_URL.");
+      setAppState("error");
     }
   }
 
@@ -50,6 +52,16 @@ export default function App() {
 
   if (appState === "loading") {
     return <div className="center"><div className="spinner" /></div>;
+  }
+
+  if (appState === "error") {
+    return (
+      <div className="center" style={{ flexDirection: "column", gap: 12, padding: 32 }}>
+        <p style={{ color: "#ff6b6b", fontWeight: 600 }}>Backend connection failed</p>
+        <p style={{ color: "#888", fontSize: 13 }}>{apiError}</p>
+        <button className="btn-ghost" onClick={() => signOut(auth)}>Sign out</button>
+      </div>
+    );
   }
 
   if (appState === "signed-out") {
