@@ -7,7 +7,19 @@
     <title>frontend</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="pre-react" style="color:#f0f0f0;background:#0f0f0f;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:sans-serif;font-size:16px">
+        Loading…
+      </div>
+    </div>
+    <script>
+      window.onerror = function(msg, src, line, col, err) {
+        document.body.innerHTML = '<div style="color:#ff6b6b;background:#0f0f0f;min-height:100vh;padding:40px;font-family:monospace"><h2>Startup error</h2><pre style="margin-top:16px;white-space:pre-wrap;font-size:13px">' + msg + '\n\n' + (err && err.stack ? err.stack : '') + '</pre></div>';
+      };
+      window.onunhandledrejection = function(e) {
+        document.body.innerHTML = '<div style="color:#ff6b6b;background:#0f0f0f;min-height:100vh;padding:40px;font-family:monospace"><h2>Unhandled error</h2><pre style="margin-top:16px;white-space:pre-wrap;font-size:13px">' + (e.reason && e.reason.stack ? e.reason.stack : String(e.reason)) + '</pre></div>';
+      };
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
