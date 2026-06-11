@@ -28,11 +28,12 @@ if _sa_val:
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", secrets.token_hex(32))
 
-_allowed_origins = ["http://localhost:5173"]
-_frontend_url = os.environ.get("FRONTEND_URL")
+_allowed_origins = {"http://localhost:5173", "https://kracked-automation.vercel.app"}
+_frontend_url = os.environ.get("FRONTEND_URL", "")
 if _frontend_url:
-    _allowed_origins.append(_frontend_url)
-CORS(app, supports_credentials=True, origins=_allowed_origins)
+    _allowed_origins.add(_frontend_url)
+
+CORS(app, supports_credentials=True, origins=list(_allowed_origins))
 
 
 @app.after_request
@@ -46,9 +47,10 @@ def _add_cors(response):
     return response
 
 
+@app.route("/api/cors-preflight", methods=["OPTIONS"])
 @app.route("/api/<path:path>", methods=["OPTIONS"])
-def _options_handler(path):
-    return "", 204
+def _options_handler(path=""):
+    return app.make_response(("", 204))
 
 OUTPUT_DIR = Path(__file__).parent / "output"
 MUSIC_DIR = Path(__file__).parent / "music"
