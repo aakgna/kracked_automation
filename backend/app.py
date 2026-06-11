@@ -270,7 +270,8 @@ def _run_pipeline(video_id: str, uid: str, user: dict, mode: str = "pika") -> No
     )
     from src.audio_generator import generate_audio, get_audio_duration, AudioGenerationError
     from src.pika_generator import generate_pika_video, PikaGenerationError
-    from src.video_editor import pick_random_music, pick_random_video, generate_subtitles, render_video, VideoEditorError
+    from src.pexels_fetcher import fetch_brainrot_video, PexelsFetchError
+    from src.video_editor import pick_random_music, generate_subtitles, render_video, VideoEditorError
 
     product_desc = user["productDescription"]
     video_style = user.get("videoStyle", "engaging and energetic")
@@ -310,8 +311,14 @@ def _run_pipeline(video_id: str, uid: str, user: dict, mode: str = "pika") -> No
             _, word_timestamps = audio_future.result()
             video_future.result()
         else:
-            tmp_video = pick_random_video(VIDEOS_DIR)
+            tmp_video = OUTPUT_DIR / f"_tmp_brainrot_{video_id}_{ts}.mp4"
+            video_future = _executor.submit(
+                fetch_brainrot_video,
+                os.environ["PEXELS_API_KEY"],
+                tmp_video,
+            )
             _, word_timestamps = audio_future.result()
+            video_future.result()
 
         audio_duration = get_audio_duration(tmp_audio)
 
@@ -343,9 +350,9 @@ def _run_pipeline(video_id: str, uid: str, user: dict, mode: str = "pika") -> No
         for p in [tmp_audio, subtitle_path]:
             if p and Path(p).exists():
                 Path(p).unlink(missing_ok=True)
-        if mode == "pika":
-            tmp_pika_path = OUTPUT_DIR / f"_tmp_pika_{video_id}_{ts}.mp4"
-            tmp_pika_path.unlink(missing_ok=True)
+        tmp_vid_prefix = "_tmp_pika_" if mode == "pika" else "_tmp_brainrot_"
+        tmp_vid_path = OUTPUT_DIR / f"{tmp_vid_prefix}{video_id}_{ts}.mp4"
+        tmp_vid_path.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
