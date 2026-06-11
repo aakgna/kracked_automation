@@ -12,6 +12,19 @@ from firebase_admin import auth as fb_auth
 
 load_dotenv()
 
+# Initialize Firebase Admin once at startup
+import json as _json
+from firebase_admin import credentials as _creds
+_sa_val = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON", "")
+if _sa_val:
+    try:
+        _sa_dict = _json.loads(_sa_val)
+        _cred = _creds.Certificate(_sa_dict)
+    except Exception:
+        _cred = _creds.Certificate(_sa_val)
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app(_cred)
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", secrets.token_hex(32))
 

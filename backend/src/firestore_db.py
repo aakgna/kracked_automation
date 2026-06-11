@@ -13,13 +13,13 @@ def _get_db():
     if _db is None:
         if not firebase_admin._apps:
             sa_val = os.environ["FIREBASE_SERVICE_ACCOUNT_JSON"]
-            # Accept either a file path or raw JSON content
             try:
                 sa_dict = json.loads(sa_val)
                 cred = credentials.Certificate(sa_dict)
             except json.JSONDecodeError:
                 cred = credentials.Certificate(sa_val)
             firebase_admin.initialize_app(cred)
+        # If already initialized by app.py, just use the existing app
         _db = firestore.client()
     return _db
 
