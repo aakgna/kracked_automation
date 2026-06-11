@@ -1,5 +1,8 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "rewrites": [
+    { "source": "/tiktok4bPzfmWdUzy1YMqLQIqyFs8hA8HjSJSB.txt", "destination": "/api/tiktok-verify" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",
