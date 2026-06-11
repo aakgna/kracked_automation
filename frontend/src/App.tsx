@@ -5,11 +5,17 @@ import { auth, googleProvider } from "./firebase";
 import { getMe } from "./api";
 import OnboardingForm from "./components/OnboardingForm";
 import Dashboard from "./components/Dashboard";
+import Footer from "./components/Footer";
+import PolicyPage from "./pages/PolicyPage";
 import "./App.css";
 
 type AppState = "loading" | "signed-out" | "onboarding" | "dashboard" | "error";
 
 export default function App() {
+  const path = window.location.pathname;
+  if (path === "/privacy-policy") return <PolicyPage page="privacy" />;
+  if (path === "/terms-of-service") return <PolicyPage page="terms" />;
+
   const [fbUser, setFbUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [appState, setAppState] = useState<AppState>("loading");
@@ -66,14 +72,17 @@ export default function App() {
 
   if (appState === "signed-out") {
     return (
-      <div className="landing">
-        <div className="landing-card">
-          <h1>TikTok Video Creator</h1>
-          <p>Generate AI-powered TikTok videos for your product and post them directly.</p>
-          <button className="btn-primary btn-large" onClick={handleSignIn}>
-            Sign in with Google
-          </button>
+      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+        <div className="landing" style={{ flex: 1 }}>
+          <div className="landing-card">
+            <h1>TikTok Video Creator</h1>
+            <p>Generate AI-powered TikTok videos for your product and post them directly.</p>
+            <button className="btn-primary btn-large" onClick={handleSignIn}>
+              Sign in with Google
+            </button>
+          </div>
         </div>
+        <Footer />
       </div>
     );
   }
@@ -96,6 +105,8 @@ export default function App() {
           <Dashboard user={profile} onRefreshUser={loadProfile} />
         )}
       </main>
+
+      <Footer />
     </div>
   );
 }
