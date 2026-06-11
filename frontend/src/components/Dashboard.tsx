@@ -17,6 +17,7 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
   const [videos, setVideos] = useState<any[]>([]);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
+  const [mode, setMode] = useState<"pika" | "brainrot">("brainrot");
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function loadVideos() {
@@ -63,7 +64,7 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
     setError("");
     setGenerating(true);
     try {
-      const { videoId } = await generateVideo();
+      const { videoId } = await generateVideo(mode);
       const newJob = await getVideoStatus(videoId);
       setVideos((prev) => [newJob, ...prev]);
     } catch (err: any) {
@@ -87,6 +88,25 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
       </div>
 
       <div className="generate-section">
+        <div className="mode-toggle">
+          <button
+            className={mode === "brainrot" ? "mode-btn mode-btn-active" : "mode-btn"}
+            onClick={() => setMode("brainrot")}
+          >
+            🎮 Brainrot
+          </button>
+          <button
+            className={mode === "pika" ? "mode-btn mode-btn-active" : "mode-btn"}
+            onClick={() => setMode("pika")}
+          >
+            ✨ AI Video
+          </button>
+        </div>
+        <p className="hint" style={{ marginBottom: 12 }}>
+          {mode === "brainrot"
+            ? "Subway Surfers · Minecraft · Jetpack Joyride background"
+            : "Pika Art generates a custom AI scene"}
+        </p>
         {error && <p className="error">{error}</p>}
         <button
           onClick={handleGenerate}
@@ -96,7 +116,8 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
           {generating ? "Starting…" : "Generate Video"}
         </button>
         <p className="hint">
-          Claude writes the script · Pika generates the scene · ElevenLabs voices it
+          Claude writes the script · ElevenLabs voices it
+          {mode === "pika" ? " · Pika generates the scene" : ""}
         </p>
       </div>
 

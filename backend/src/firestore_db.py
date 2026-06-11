@@ -60,12 +60,13 @@ def clear_tiktok_token(uid: str) -> None:
     )
 
 
-def create_video_job(uid: str) -> str:
+def create_video_job(uid: str, mode: str = "pika") -> str:
     ref = _get_db().collection("videos").document()
     ref.set(
         {
             "userId": uid,
             "status": "queued",
+            "mode": mode,
             "script": None,
             "caption": None,
             "pikaPrompt": None,

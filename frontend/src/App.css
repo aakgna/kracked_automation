@@ -120,3 +120,9 @@ button:not(:disabled):active { transform: scale(.97); }
 .center { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
 .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- Mode toggle ---------- */
+.mode-toggle { display: inline-flex; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 4px; gap: 4px; margin-bottom: 12px; }
+.mode-btn { background: transparent; color: var(--text-muted); border: none; border-radius: 7px; padding: 8px 20px; font-size: 14px; font-weight: 600; transition: background .15s, color .15s; }
+.mode-btn:hover { color: var(--text); }
+.mode-btn-active { background: var(--accent) !important; color: #fff !important; }

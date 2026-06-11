@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 _MUSIC_EXTS = {".mp3", ".m4a", ".aac"}
+_VIDEO_EXTS = {".mp4", ".mov", ".mkv"}
 
 # ASS colors are AABBGGRR:
 #   &H0000FFFF = yellow (active/spoken word)
@@ -69,6 +70,15 @@ def generate_subtitles(word_timestamps: list, output_path: Path) -> Path:
 
 class VideoEditorError(RuntimeError):
     pass
+
+
+def pick_random_video(videos_dir: Path) -> Path:
+    if not videos_dir.exists():
+        raise VideoEditorError(f"Videos directory not found: {videos_dir}")
+    candidates = [p for p in videos_dir.iterdir() if p.suffix.lower() in _VIDEO_EXTS]
+    if not candidates:
+        raise VideoEditorError(f"No video files found in {videos_dir}")
+    return random.choice(candidates)
 
 
 def pick_random_music(music_dir: Path) -> Optional[Path]:

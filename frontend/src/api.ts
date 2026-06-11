@@ -48,8 +48,11 @@ export async function disconnectTikTok() {
   return r.json();
 }
 
-export async function generateVideo(): Promise<{ videoId: string }> {
-  const r = await apiFetch("/api/videos/generate", { method: "POST" });
+export async function generateVideo(mode: "pika" | "brainrot" = "pika"): Promise<{ videoId: string }> {
+  const r = await apiFetch("/api/videos/generate", {
+    method: "POST",
+    body: JSON.stringify({ mode }),
+  });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }

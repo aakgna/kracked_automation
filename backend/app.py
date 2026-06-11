@@ -54,7 +54,9 @@ def _options_handler(path=""):
 
 OUTPUT_DIR = Path(__file__).parent / "output"
 MUSIC_DIR = Path(__file__).parent / "music"
+VIDEOS_DIR = Path(__file__).parent / "videos"
 OUTPUT_DIR.mkdir(exist_ok=True)
+VIDEOS_DIR.mkdir(exist_ok=True)
 
 _executor = ThreadPoolExecutor(max_workers=4)
 
@@ -193,8 +195,13 @@ def generate_video(uid):
     if not user or not user.get("productDescription"):
         return jsonify({"error": "Complete onboarding first"}), 400
 
-    video_id = create_video_job(uid)
-    _executor.submit(_run_pipeline, video_id, uid, user)
+    body = request.get_json(force=True) or {}
+    mode = body.get("mode", "pika")
+    if mode not in ("pika", "brainrot"):
+        mode = "pika"
+
+    video_id = create_video_job(uid, mode=mode)
+    _executor.submit(_run_pipeline, video_id, uid, user, mode)
     return jsonify({"videoId": video_id}), 202
 
 
@@ -256,14 +263,14 @@ def list_videos(uid):
 # Background pipeline
 # ---------------------------------------------------------------------------
 
-def _run_pipeline(video_id: str, uid: str, user: dict) -> None:
+def _run_pipeline(video_id: str, uid: str, user: dict, mode: str = "pika") -> None:
     from src.firestore_db import update_video_job, save_tiktok_token
     from src.script_generator import (
         generate_script, generate_caption, generate_pika_prompt, ScriptGenerationError
     )
     from src.audio_generator import generate_audio, get_audio_duration, AudioGenerationError
     from src.pika_generator import generate_pika_video, PikaGenerationError
-    from src.video_editor import pick_random_music, generate_subtitles, render_video, VideoEditorError
+    from src.video_editor import pick_random_music, pick_random_video, generate_subtitles, render_video, VideoEditorError
 
     product_desc = user["productDescription"]
     video_style = user.get("videoStyle", "engaging and energetic")
@@ -276,13 +283,12 @@ def _run_pipeline(video_id: str, uid: str, user: dict) -> None:
         update_video_job(video_id, status="generating_script")
         script = generate_script(product_desc, video_style, anthropic_key, model)
         caption = generate_caption(script, product_desc, anthropic_key, model)
-        pika_prompt = generate_pika_prompt(product_desc, script, anthropic_key, model)
+        pika_prompt = generate_pika_prompt(product_desc, script, anthropic_key, model) if mode == "pika" else None
         update_video_job(video_id, script=script, caption=caption, pikaPrompt=pika_prompt)
 
-        # Stage 2: Audio + Pika concurrently
+        # Stage 2: Audio + Video concurrently
         update_video_job(video_id, status="generating_av")
         tmp_audio = OUTPUT_DIR / f"_tmp_audio_{video_id}_{ts}.mp3"
-        tmp_pika = OUTPUT_DIR / f"_tmp_pika_{video_id}_{ts}.mp4"
 
         audio_future = _executor.submit(
             generate_audio,
@@ -292,15 +298,20 @@ def _run_pipeline(video_id: str, uid: str, user: dict) -> None:
             tmp_audio,
             os.environ.get("ELEVENLABS_MODEL_ID", "eleven_turbo_v2_5"),
         )
-        pika_future = _executor.submit(
-            generate_pika_video,
-            pika_prompt,
-            os.environ["FAL_KEY"],
-            tmp_pika,
-        )
 
-        _, word_timestamps = audio_future.result()
-        pika_future.result()
+        if mode == "pika":
+            tmp_video = OUTPUT_DIR / f"_tmp_pika_{video_id}_{ts}.mp4"
+            video_future = _executor.submit(
+                generate_pika_video,
+                pika_prompt,
+                os.environ["FAL_KEY"],
+                tmp_video,
+            )
+            _, word_timestamps = audio_future.result()
+            video_future.result()
+        else:
+            tmp_video = pick_random_video(VIDEOS_DIR)
+            _, word_timestamps = audio_future.result()
 
         audio_duration = get_audio_duration(tmp_audio)
 
@@ -315,7 +326,7 @@ def _run_pipeline(video_id: str, uid: str, user: dict) -> None:
 
         music_volume = float(os.environ.get("MUSIC_VOLUME", "0.15"))
         render_video(
-            video_path=tmp_pika,
+            video_path=tmp_video,
             audio_path=tmp_audio,
             music_path=music_src,
             output_path=output_path,
@@ -332,6 +343,9 @@ def _run_pipeline(video_id: str, uid: str, user: dict) -> None:
         for p in [tmp_audio, subtitle_path]:
             if p and Path(p).exists():
                 Path(p).unlink(missing_ok=True)
+        if mode == "pika":
+            tmp_pika_path = OUTPUT_DIR / f"_tmp_pika_{video_id}_{ts}.mp4"
+            tmp_pika_path.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
