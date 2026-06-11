@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: kracked-tiktok-api
+    runtime: python
+    rootDir: .
+    buildCommand: bash build.sh
+    startCommand: gunicorn app:app --workers 2 --threads 4 --timeout 300
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+      - key: ELEVENLABS_MODEL_ID
+        value: eleven_turbo_v2_5
+      - key: TIKTOK_CLIENT_KEY
+        sync: false
+      - key: TIKTOK_CLIENT_SECRET
+        sync: false
+      - key: TIKTOK_REDIRECT_URI
+        sync: false
+      - key: TIKTOK_PRIVACY_LEVEL
+        value: PUBLIC_TO_EVERYONE
+      - key: FAL_KEY
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: FLASK_SECRET_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: MUSIC_VOLUME
+        value: "0.15"
