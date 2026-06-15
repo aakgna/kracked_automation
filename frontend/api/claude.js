@@ -19,8 +19,9 @@ export default async function handler(req, res) {
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    return res.status(response.status).json({ error: text });
+    const data = await response.json().catch(() => ({}));
+    const msg = data?.error?.message ?? `HTTP ${response.status}`;
+    return res.status(response.status).json({ error: msg });
   }
 
   const data = await response.json();
