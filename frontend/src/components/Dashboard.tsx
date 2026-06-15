@@ -3,7 +3,7 @@ import { getFirestore, collection, addDoc, doc, updateDoc, onSnapshot, query, wh
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { generateScript, generateCaption, generatePikaPrompt } from "../services/claudeService";
 import { generateAudio } from "../services/elevenLabsService";
-import { fetchBrainrotVideoUrl } from "../services/pexelsService";
+import { fetchBrainrotVideoUrls } from "../services/pexelsService";
 import { composeVideo } from "../services/videoComposer";
 import { getTikTokAuthUrl, disconnectTikTok } from "../api";
 import { fetchBackgroundMusicUrl } from "../services/musicService";
@@ -89,9 +89,9 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
       await update({ status: "generating_av" });
 
       const jamendoId = import.meta.env.VITE_JAMENDO_CLIENT_ID ?? "";
-      const [audioResult, videoUrl, musicUrl] = await Promise.all([
+      const [audioResult, videoUrls, musicUrl] = await Promise.all([
         generateAudio(script, elVoice, elKey),
-        mode === "brainrot" ? fetchBrainrotVideoUrl(pexelsKey) : Promise.resolve(""),
+        mode === "brainrot" ? fetchBrainrotVideoUrls(pexelsKey, 4) : Promise.resolve([""]),
         jamendoId ? fetchBackgroundMusicUrl(jamendoId) : Promise.resolve(null),
       ]);
 
@@ -100,7 +100,7 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
       await update({ status: "composing" });
 
       const videoBlob = await composeVideo(
-        videoUrl,
+        videoUrls,
         audioResult.audioBlob,
         audioResult.wordTimestamps,
         audioResult.duration,

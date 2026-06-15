@@ -23,13 +23,10 @@ export default async function handler(req, res) {
     return res.send(`<script>window.opener.postMessage({tiktok:'error',message:'state_missing'},'*');window.close();</script>`);
   }
 
-  const [cookieState, codeVerifier] = match[1].split(":");
+  const [cookieState, codeVerifier, uid] = match[1].split(":");
   if (cookieState !== state || !code) {
     return res.send(`<script>window.opener.postMessage({tiktok:'error',message:'invalid_state'},'*');window.close();</script>`);
   }
-
-  // Get uid from query param (passed by frontend when opening popup)
-  const uid = req.query.uid;
 
   try {
     const tokenRes = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {

@@ -49,8 +49,20 @@ function drawFrame(ctx: CanvasRenderingContext2D, video: HTMLVideoElement, words
   }
 }
 
+async function loadVideoEl(blobUrl: string): Promise<HTMLVideoElement> {
+  return new Promise((res, rej) => {
+    const v = document.createElement("video");
+    v.muted = true;
+    v.playsInline = true;
+    v.src = blobUrl;
+    v.oncanplay = () => res(v);
+    v.onerror = () => rej(new Error("Failed to load video clip"));
+    v.load();
+  });
+}
+
 export async function composeVideo(
-  videoUrl: string,
+  videoUrls: string[],
   audioBlob: Blob,
   wordTimestamps: WordTimestamp[],
   audioDuration: number,
@@ -63,21 +75,17 @@ export async function composeVideo(
   canvas.height = H;
   const ctx = canvas.getContext("2d")!;
 
-  // Fetch video as blob URL to avoid canvas CORS taint
-  const videoResp = await fetch(videoUrl);
-  const videoBlob = await videoResp.blob();
-  const videoBlobUrl = URL.createObjectURL(videoBlob);
+  // Fetch all clips as blob URLs in parallel to avoid canvas CORS taint
+  const blobUrls = await Promise.all(
+    videoUrls.map(async (url) => {
+      const resp = await fetch(url);
+      return URL.createObjectURL(await resp.blob());
+    })
+  );
+  const videoEls = await Promise.all(blobUrls.map(loadVideoEl));
 
-  const video = document.createElement("video");
-  video.muted = true;
-  video.loop = true;
-  video.playsInline = true;
-  video.src = videoBlobUrl;
-  await new Promise<void>((res, rej) => {
-    video.oncanplay = () => res();
-    video.onerror = () => rej(new Error("Failed to load background video"));
-    video.load();
-  });
+  let clipIdx = 0;
+  await videoEls[0].play();
 
   const audioCtx = new AudioContext();
   const dest = audioCtx.createMediaStreamDestination();
@@ -86,8 +94,8 @@ export async function composeVideo(
 
   if (musicUrl) {
     try {
-      const res = await fetch(musicUrl);
-      const musicBuffer = await audioCtx.decodeAudioData(await res.arrayBuffer());
+      const musicResp = await fetch(musicUrl);
+      const musicBuffer = await audioCtx.decodeAudioData(await musicResp.arrayBuffer());
       const src = audioCtx.createBufferSource();
       src.buffer = musicBuffer;
       src.loop = true;
@@ -96,7 +104,7 @@ export async function composeVideo(
       src.connect(gain);
       gain.connect(dest);
       src.start();
-    } catch { /* music is optional */ }
+    } catch { /* music optional */ }
   }
 
   const mimeType =
@@ -113,7 +121,6 @@ export async function composeVideo(
   recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
 
   recorder.start(100);
-  await video.play();
 
   const voice = audioCtx.createBufferSource();
   voice.buffer = voiceBuffer;
@@ -126,16 +133,27 @@ export async function composeVideo(
     const draw = () => {
       const elapsed = audioCtx.currentTime - startTime;
       if (elapsed >= audioDuration) { resolve(); return; }
+
       onProgress?.(elapsed / audioDuration);
-      drawFrame(ctx, video, wordTimestamps, elapsed);
+
+      // Advance to next clip when current one ends
+      const cur = videoEls[clipIdx];
+      if (cur.ended || (cur.duration > 0 && cur.currentTime >= cur.duration - 0.15)) {
+        cur.pause();
+        clipIdx = (clipIdx + 1) % videoEls.length;
+        videoEls[clipIdx].currentTime = 0;
+        videoEls[clipIdx].play();
+      }
+
+      drawFrame(ctx, videoEls[clipIdx], wordTimestamps, elapsed);
       requestAnimationFrame(draw);
     };
     requestAnimationFrame(draw);
   });
 
   recorder.stop();
-  video.pause();
-  URL.revokeObjectURL(videoBlobUrl);
+  videoEls.forEach(v => v.pause());
+  blobUrls.forEach(u => URL.revokeObjectURL(u));
   await audioCtx.close();
 
   await new Promise<void>((res) => { recorder.onstop = () => res(); });

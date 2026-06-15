@@ -14,7 +14,8 @@ export default function handler(req, res) {
   _states.set(state, { codeVerifier, uid: req.query.uid });
 
   // Persist state in a cookie so callback can retrieve it
-  res.setHeader("Set-Cookie", `tiktok_state=${state}:${codeVerifier}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=600`);
+  const uid = req.query.uid ?? "";
+  res.setHeader("Set-Cookie", `tiktok_state=${state}:${codeVerifier}:${uid}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=600`);
 
   const params = new URLSearchParams({
     client_key: process.env.TIKTOK_CLIENT_KEY,
