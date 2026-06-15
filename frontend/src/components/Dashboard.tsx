@@ -70,7 +70,6 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
     const update = (fields: Record<string, any>) => updateDoc(doc(db, "videos", videoId), fields);
 
     try {
-      const anthropicKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
       const elKey = import.meta.env.VITE_ELEVENLABS_API_KEY;
       const elVoice = import.meta.env.VITE_ELEVENLABS_VOICE_ID;
       const pexelsKey = import.meta.env.VITE_PEXELS_API_KEY;
@@ -78,9 +77,9 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
       // Stage 1: Script
       setProgress("Writing script…");
       await update({ status: "generating_script" });
-      const script = await generateScript(user.productDescription, user.videoStyle, anthropicKey);
-      const caption = await generateCaption(script, user.productDescription, anthropicKey);
-      const pikaPrompt = mode === "pika" ? await generatePikaPrompt(user.productDescription, script, anthropicKey) : null;
+      const script = await generateScript(user.productDescription, user.videoStyle);
+      const caption = await generateCaption(script, user.productDescription);
+      const pikaPrompt = mode === "pika" ? await generatePikaPrompt(user.productDescription, script) : null;
       await update({ script, caption, pikaPrompt });
 
       // Stage 2: Audio + Video source
