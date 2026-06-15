@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { signInWithPopup, onAuthStateChanged, signOut } from "firebase/auth";
 import type { User } from "firebase/auth";
-import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { getFirestore, doc, onSnapshot } from "firebase/firestore";
 import { auth, googleProvider } from "./firebase";
 import OnboardingForm from "./components/OnboardingForm";
 import Dashboard from "./components/Dashboard";
 import Footer from "./components/Footer";
 import PolicyPage from "./pages/PolicyPage";
+import TikTokCallbackPage from "./pages/TikTokCallbackPage";
 import "./App.css";
 
 const db = getFirestore();
@@ -17,6 +18,7 @@ export default function App() {
   const path = window.location.pathname;
   if (path === "/privacy-policy") return <PolicyPage page="privacy" />;
   if (path === "/terms-of-service") return <PolicyPage page="terms" />;
+  if (path === "/callback") return <TikTokCallbackPage />;
 
   const [fbUser, setFbUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -24,35 +26,37 @@ export default function App() {
   const [apiError, setApiError] = useState("");
 
   useEffect(() => {
-    return onAuthStateChanged(auth, async (user) => {
+    let unsubProfile: (() => void) | null = null;
+
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
       setFbUser(user);
+      if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+
       if (!user) {
         setAppState("signed-out");
         setProfile(null);
         return;
       }
-      await loadProfile();
+
+      unsubProfile = onSnapshot(doc(db, "users", user.uid), (snap) => {
+        const data = snap.exists() ? snap.data() : {};
+        setProfile({
+          uid: user.uid,
+          productDescription: data.productDescription ?? null,
+          videoStyle: data.videoStyle ?? null,
+          tiktokConnected: !!data.tiktokToken,
+        });
+        setAppState(data.productDescription ? "dashboard" : "onboarding");
+      }, (e) => {
+        setApiError(e.message ?? "Failed to load profile");
+        setAppState("error");
+      });
     });
+
+    return () => { unsubAuth(); unsubProfile?.(); };
   }, []);
 
-  async function loadProfile() {
-    try {
-      const uid = auth.currentUser?.uid;
-      if (!uid) { setAppState("signed-out"); return; }
-      const snap = await getDoc(doc(db, "users", uid));
-      const data = snap.exists() ? snap.data() : {};
-      setProfile({
-        uid,
-        productDescription: data.productDescription ?? null,
-        videoStyle: data.videoStyle ?? null,
-        tiktokConnected: !!data.tiktokToken,
-      });
-      setAppState(data.productDescription ? "dashboard" : "onboarding");
-    } catch (e: any) {
-      setApiError(e.message ?? "Failed to load profile");
-      setAppState("error");
-    }
-  }
+  function loadProfile() { /* profile is now live via onSnapshot */ }
 
   async function handleSignIn() {
     try {

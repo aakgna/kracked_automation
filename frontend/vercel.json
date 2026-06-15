@@ -2,8 +2,7 @@
   "rewrites": [
     { "source": "/tiktok4bPzfmWdUzy1YMqLQIqyFs8hA8HjSJSB.txt", "destination": "/api/tiktok-verify" },
     { "source": "/tiktokukqk1M3vLXfuDdv3bwELEG9u2xYGhH4v.txt", "destination": "/api/tiktok-verify-sandbox" },
-    { "source": "/callback", "destination": "/api/tiktok-callback" },
-    { "source": "/(.*)", "destination": "/index.html" }
+{ "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
     {

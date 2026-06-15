@@ -131,12 +131,15 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
   }
 
   async function handleConnectTikTok() {
-    const { url } = await getTikTokAuthUrl(user.uid);
+    const { url, state, codeVerifier } = await getTikTokAuthUrl(user.uid);
+    sessionStorage.setItem("tiktok_pkce", JSON.stringify({ state, codeVerifier, uid: user.uid }));
     const popup = window.open(url, "tiktok-auth", "width=600,height=700");
     window.addEventListener("message", async (e) => {
       if (e.data?.tiktok === "connected") {
         popup?.close();
         onRefreshUser();
+      } else if (e.data?.tiktok === "error") {
+        setError(`TikTok connection failed: ${e.data.message ?? "unknown"}`);
       }
     }, { once: true });
   }
