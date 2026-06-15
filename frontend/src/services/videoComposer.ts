@@ -1,58 +1,52 @@
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile } from "@ffmpeg/util";
 import type { WordTimestamp } from "./elevenLabsService";
 
-const ffmpeg = new FFmpeg();
-let loaded = false;
+const W = 1080;
+const H = 1920;
+const FPS = 30;
+const FONT_SIZE = 78;
+const CAPTION_Y = H * 0.78;
+const CHUNK = 3;
 
-async function load() {
-  if (loaded) return;
-  const base = `${window.location.origin}`;
-  await ffmpeg.load({
-    coreURL: `${base}/ffmpeg-core.js`,
-    wasmURL: `${base}/ffmpeg-core.wasm`,
-  });
-  loaded = true;
+function activeChunk(words: WordTimestamp[], t: number): WordTimestamp[] | null {
+  for (let i = 0; i < words.length; i += CHUNK) {
+    const c = words.slice(i, i + CHUNK);
+    if (t >= c[0].start - 0.05 && t <= c[c.length - 1].end + 0.5) return c;
+  }
+  return null;
 }
 
-function buildAssSubtitles(words: WordTimestamp[]): string {
-  const header = `[Script Info]
-ScriptType: v4.00+
-PlayResX: 1080
-PlayResY: 1920
-WrapStyle: 0
+function drawFrame(ctx: CanvasRenderingContext2D, video: HTMLVideoElement, words: WordTimestamp[], t: number) {
+  const vw = video.videoWidth || W;
+  const vh = video.videoHeight || H;
+  const srcAspect = vw / vh;
+  const dstAspect = W / H;
+  let sx = 0, sy = 0, sw = vw, sh = vh;
+  if (srcAspect > dstAspect) { sw = Math.round(vh * dstAspect); sx = Math.round((vw - sw) / 2); }
+  else { sh = Math.round(vw / dstAspect); sy = Math.round((vh - sh) / 2); }
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, W, H);
 
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,84,&H0000FFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,2,0,1,6,0,2,80,80,270,1
+  const chunk = activeChunk(words, t);
+  if (!chunk) return;
 
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-`;
+  ctx.font = `900 ${FONT_SIZE}px Arial, sans-serif`;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.lineJoin = "round";
 
-  const fmt = (s: number) => {
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const sec = s % 60;
-    return `${h}:${String(m).padStart(2, "0")}:${sec.toFixed(2).padStart(5, "0")}`;
-  };
+  const spaceW = ctx.measureText(" ").width;
+  const widths = chunk.map(w => ctx.measureText(w.word).width);
+  const totalW = widths.reduce((a, b) => a + b, 0) + spaceW * (chunk.length - 1);
+  let x = (W - totalW) / 2;
 
-  const anim = "{\\fscx112\\fscy112\\t(0,180,\\fscx100\\fscy100)\\fad(60,80)}";
-  const lines: string[] = [header];
-  const chunkSize = 3;
-
-  for (let i = 0; i < words.length; i += chunkSize) {
-    const chunk = words.slice(i, i + chunkSize);
-    const start = fmt(chunk[0].start);
-    const end = fmt(chunk[chunk.length - 1].end);
-    const karaoke = chunk.map((w, j) => {
-      const durCs = Math.max(5, Math.round(((chunk[j + 1]?.start ?? w.end) - w.start) * 100));
-      return `{\\k${durCs}}${w.word}`;
-    }).join(" ");
-    lines.push(`Dialogue: 0,${start},${end},Default,,0,0,0,,${anim}${karaoke}`);
+  for (let i = 0; i < chunk.length; i++) {
+    const { word, start, end } = chunk[i];
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 14;
+    ctx.strokeText(word, x, CAPTION_Y);
+    ctx.fillStyle = t >= start && t <= end ? "#FFFF00" : "#FFFFFF";
+    ctx.fillText(word, x, CAPTION_Y);
+    x += widths[i] + (i < chunk.length - 1 ? spaceW : 0);
   }
-
-  return lines.join("\n");
 }
 
 export async function composeVideo(
@@ -64,59 +58,87 @@ export async function composeVideo(
   musicVolume = 0.15,
   onProgress?: (ratio: number) => void
 ): Promise<Blob> {
-  await load();
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
 
-  ffmpeg.on("progress", ({ progress }) => onProgress?.(progress));
+  // Fetch video as blob URL to avoid canvas CORS taint
+  const videoResp = await fetch(videoUrl);
+  const videoBlob = await videoResp.blob();
+  const videoBlobUrl = URL.createObjectURL(videoBlob);
 
-  await ffmpeg.writeFile("input.mp4", await fetchFile(videoUrl));
-  await ffmpeg.writeFile("audio.mp3", await fetchFile(audioBlob));
+  const video = document.createElement("video");
+  video.muted = true;
+  video.loop = true;
+  video.playsInline = true;
+  video.src = videoBlobUrl;
+  await new Promise<void>((res, rej) => {
+    video.oncanplay = () => res();
+    video.onerror = () => rej(new Error("Failed to load background video"));
+    video.load();
+  });
 
-  const hasMusic = !!musicUrl;
-  if (hasMusic) await ffmpeg.writeFile("music.mp3", await fetchFile(musicUrl!));
+  const audioCtx = new AudioContext();
+  const dest = audioCtx.createMediaStreamDestination();
 
-  const hasSubs = wordTimestamps.length > 0;
-  if (hasSubs) await ffmpeg.writeFile("subs.ass", buildAssSubtitles(wordTimestamps));
+  const voiceBuffer = await audioCtx.decodeAudioData(await audioBlob.arrayBuffer());
 
-  const subFilter = hasSubs ? `,subtitles=subs.ass` : "";
-
-  let filterComplex: string;
-  let mapArgs: string[];
-
-  if (hasMusic) {
-    filterComplex = [
-      `[0:v]crop=ih*9/16:ih,scale=1080:1920,fps=30[vid]`,
-      `[vid]trim=duration=${audioDuration}${subFilter}[vout]`,
-      `[1:a]volume=1.0[voice]`,
-      `[2:a]volume=${musicVolume}[music]`,
-      `[voice][music]amix=inputs=2:duration=shortest[aout]`,
-    ].join(";");
-    mapArgs = ["-map", "[vout]", "-map", "[aout]"];
-  } else {
-    filterComplex = [
-      `[0:v]crop=ih*9/16:ih,scale=1080:1920,fps=30[vid]`,
-      `[vid]trim=duration=${audioDuration}${subFilter}[vout]`,
-    ].join(";");
-    mapArgs = ["-map", "[vout]", "-map", "1:a"];
+  if (musicUrl) {
+    try {
+      const res = await fetch(musicUrl);
+      const musicBuffer = await audioCtx.decodeAudioData(await res.arrayBuffer());
+      const src = audioCtx.createBufferSource();
+      src.buffer = musicBuffer;
+      src.loop = true;
+      const gain = audioCtx.createGain();
+      gain.gain.value = musicVolume;
+      src.connect(gain);
+      gain.connect(dest);
+      src.start();
+    } catch { /* music is optional */ }
   }
 
-  const inputs = [
-    "-stream_loop", "-1", "-an", "-i", "input.mp4",
-    "-i", "audio.mp3",
-    ...(hasMusic ? ["-stream_loop", "-1", "-i", "music.mp3"] : []),
-  ];
+  const mimeType =
+    ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm"]
+      .find(t => MediaRecorder.isTypeSupported(t)) ?? "video/webm";
 
-  await ffmpeg.exec([
-    ...inputs,
-    "-filter_complex", filterComplex,
-    ...mapArgs,
-    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
-    "-pix_fmt", "yuv420p",
-    "-c:a", "aac", "-b:a", "128k",
-    "-t", String(audioDuration),
-    "-y", "output.mp4",
+  const stream = new MediaStream([
+    ...canvas.captureStream(FPS).getVideoTracks(),
+    ...dest.stream.getAudioTracks(),
   ]);
 
-  const data = await ffmpeg.readFile("output.mp4");
-  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data as unknown as ArrayBuffer);
-  return new Blob([bytes.buffer as ArrayBuffer], { type: "video/mp4" });
+  const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2_500_000 });
+  const chunks: Blob[] = [];
+  recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+  recorder.start(100);
+  await video.play();
+
+  const voice = audioCtx.createBufferSource();
+  voice.buffer = voiceBuffer;
+  voice.connect(dest);
+  voice.start();
+
+  const startTime = audioCtx.currentTime;
+
+  await new Promise<void>((resolve) => {
+    const draw = () => {
+      const elapsed = audioCtx.currentTime - startTime;
+      if (elapsed >= audioDuration) { resolve(); return; }
+      onProgress?.(elapsed / audioDuration);
+      drawFrame(ctx, video, wordTimestamps, elapsed);
+      requestAnimationFrame(draw);
+    };
+    requestAnimationFrame(draw);
+  });
+
+  recorder.stop();
+  video.pause();
+  URL.revokeObjectURL(videoBlobUrl);
+  await audioCtx.close();
+
+  await new Promise<void>((res) => { recorder.onstop = () => res(); });
+
+  return new Blob(chunks, { type: mimeType });
 }
