@@ -1,4 +1,6 @@
 .env
+.env.local
+**/.env.local
 token.json
 output/
 __pycache__/
