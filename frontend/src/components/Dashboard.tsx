@@ -114,8 +114,16 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
       const storageRef = ref(storage, `videos/${user.uid}/${videoId}.mp4`);
       await uploadBytes(storageRef, videoBlob, { contentType: "video/mp4" });
       const downloadUrl = await getDownloadURL(storageRef);
-
       await update({ status: "ready", videoUrl: downloadUrl });
+
+      // Stage 5: Auto-post to TikTok if connected
+      if (user.tiktokConnected) {
+        setProgress("Posting to TikTok…");
+        const { postVideoToTikTok } = await import("../api");
+        const { publishId } = await postVideoToTikTok(user.uid, downloadUrl, caption);
+        await update({ status: "posted", publishId });
+      }
+
       setProgress("");
     } catch (e: any) {
       await updateDoc(doc(db, "videos", videoId), {
