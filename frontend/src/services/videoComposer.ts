@@ -7,7 +7,7 @@ let loaded = false;
 
 async function load() {
   if (loaded) return;
-  const base = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd";
+  const base = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd";
   await ffmpeg.load({
     coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
     wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
