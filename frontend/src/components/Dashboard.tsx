@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getFirestore, collection, addDoc, doc, updateDoc, onSnapshot, query, where, serverTimestamp } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { generateScript, generateCaption, generatePikaPrompt } from "../services/claudeService";
 import { generateAudio } from "../services/elevenLabsService";
 import { fetchBrainrotVideoUrls } from "../services/pexelsService";
@@ -121,7 +121,8 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
         setProgress("Posting to TikTok…");
         const { postVideoToTikTok } = await import("../api");
         const { publishId } = await postVideoToTikTok(user.uid, downloadUrl, caption);
-        await update({ status: "posted", publishId });
+        await update({ status: "posted", publishId, videoUrl: null });
+        await deleteObject(storageRef).catch(() => {});
       }
 
       setProgress("");
