@@ -95,5 +95,6 @@ export async function composeVideo(
   ]);
 
   const data = await ffmpeg.readFile("output.mp4");
-  return new Blob([data], { type: "video/mp4" });
+  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data as unknown as ArrayBuffer);
+  return new Blob([bytes.buffer as ArrayBuffer], { type: "video/mp4" });
 }

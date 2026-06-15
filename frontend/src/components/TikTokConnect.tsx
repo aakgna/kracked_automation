@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { getTikTokAuthUrl, disconnectTikTok } from "../api";
+import { auth } from "../firebase";
 
 interface Props {
   connected: boolean;
@@ -12,7 +13,8 @@ export default function TikTokConnect({ connected, onStatusChange }: Props) {
   async function handleConnect() {
     setLoading(true);
     try {
-      const url = await getTikTokAuthUrl();
+      const uid = auth.currentUser?.uid ?? "";
+      const { url } = await getTikTokAuthUrl(uid);
       const popup = window.open(url, "tiktok-auth", "width=600,height=700");
       window.addEventListener("message", function handler(e) {
         if (e.data?.tiktok === "connected" || e.data?.tiktok === "error") {
@@ -30,7 +32,8 @@ export default function TikTokConnect({ connected, onStatusChange }: Props) {
   async function handleDisconnect() {
     setLoading(true);
     try {
-      await disconnectTikTok();
+      const uid = auth.currentUser?.uid ?? "";
+      await disconnectTikTok(uid);
       onStatusChange();
     } finally {
       setLoading(false);

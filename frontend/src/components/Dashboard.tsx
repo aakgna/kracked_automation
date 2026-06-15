@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { getFirestore, collection, addDoc, doc, updateDoc, onSnapshot, query, where, orderBy, limit, serverTimestamp, getDoc } from "firebase/firestore";
+import { getFirestore, collection, addDoc, doc, updateDoc, onSnapshot, query, where, orderBy, limit, serverTimestamp } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { auth } from "../firebase";
 import { generateScript, generateCaption, generatePikaPrompt } from "../services/claudeService";
 import { generateAudio } from "../services/elevenLabsService";
 import { fetchBrainrotVideoUrl } from "../services/pexelsService";
 import { composeVideo } from "../services/videoComposer";
-import { getTikTokAuthUrl, disconnectTikTok, postVideoToTikTok } from "../api";
+import { getTikTokAuthUrl, disconnectTikTok } from "../api";
 import VideoCard from "./VideoCard";
 
 interface Props {
@@ -128,7 +127,7 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
   }
 
   async function handleConnectTikTok() {
-    const { url, state, codeVerifier } = await getTikTokAuthUrl(user.uid);
+    const { url } = await getTikTokAuthUrl(user.uid);
     const popup = window.open(url, "tiktok-auth", "width=600,height=700");
     window.addEventListener("message", async (e) => {
       if (e.data?.tiktok === "connected") {
