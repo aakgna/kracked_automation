@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { postVideo } from "../api";
+import { postVideoToTikTok } from "../api";
+import { getFirestore, doc, updateDoc } from "firebase/firestore";
 
 const STATUS_LABELS: Record<string, string> = {
   queued: "Queued",
   generating_script: "Writing script…",
-  generating_av: "Generating video & audio…",
-  composing: "Composing final video…",
+  generating_av: "Generating audio…",
+  composing: "Composing video…",
   ready: "Ready to post",
   posted: "Posted ✓",
   failed: "Failed",
@@ -20,21 +21,27 @@ interface Props {
     pikaPrompt?: string;
     publishId?: string;
     errorMessage?: string;
-    createdAt?: number;
+    createdAt?: any;
+    videoUrl?: string;
   };
   tiktokConnected: boolean;
+  uid: string;
   onPosted: () => void;
 }
 
-export default function VideoCard({ video, tiktokConnected, onPosted }: Props) {
+const db = getFirestore();
+
+export default function VideoCard({ video, tiktokConnected, uid, onPosted }: Props) {
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState("");
 
   async function handlePost() {
+    if (!video.videoUrl || !video.caption) return;
     setPosting(true);
     setError("");
     try {
-      await postVideo(video.id);
+      const { publishId } = await postVideoToTikTok(uid, video.videoUrl, video.caption);
+      await updateDoc(doc(db, "videos", video.id), { status: "posted", publishId });
       onPosted();
     } catch (err: any) {
       setError(err.message);
@@ -45,9 +52,7 @@ export default function VideoCard({ video, tiktokConnected, onPosted }: Props) {
 
   const isInProgress = ["queued", "generating_script", "generating_av", "composing"].includes(video.status);
   const statusLabel = STATUS_LABELS[video.status] ?? video.status;
-  const date = video.createdAt
-    ? new Date(video.createdAt * 1000).toLocaleString()
-    : "";
+  const date = video.createdAt?.toDate ? video.createdAt.toDate().toLocaleString() : "";
 
   return (
     <div className={`video-card status-${video.status}`}>
@@ -62,35 +67,36 @@ export default function VideoCard({ video, tiktokConnected, onPosted }: Props) {
         </div>
       )}
 
-      {video.caption && (
-        <p className="video-caption">{video.caption}</p>
-      )}
-
-      {video.pikaPrompt && (
-        <p className="video-scene-prompt">
-          <em>Scene: {video.pikaPrompt}</em>
-        </p>
-      )}
+      {video.caption && <p className="video-caption">{video.caption}</p>}
 
       {video.status === "failed" && video.errorMessage && (
         <p className="error">{video.errorMessage}</p>
       )}
 
-      {video.status === "posted" && video.publishId && (
-        <p className="publish-id">publish_id: {video.publishId}</p>
-      )}
-
-      {video.status === "ready" && tiktokConnected && (
-        <div>
+      {video.status === "ready" && video.videoUrl && (
+        <div style={{ marginTop: 10 }}>
+          <video
+            src={video.videoUrl}
+            controls
+            style={{ width: "100%", maxHeight: 300, borderRadius: 8, background: "#000" }}
+          />
+          <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+            <a href={video.videoUrl} download={`video-${video.id}.mp4`} className="btn-ghost" style={{ textDecoration: "none", textAlign: "center" }}>
+              Download
+            </a>
+            {tiktokConnected && (
+              <button onClick={handlePost} disabled={posting} className="btn-primary" style={{ flex: 1 }}>
+                {posting ? "Posting…" : "Post to TikTok"}
+              </button>
+            )}
+          </div>
+          {!tiktokConnected && <p className="hint" style={{ marginTop: 8 }}>Connect TikTok above to post.</p>}
           {error && <p className="error">{error}</p>}
-          <button onClick={handlePost} disabled={posting} className="btn-primary">
-            {posting ? "Posting…" : "Post to TikTok"}
-          </button>
         </div>
       )}
 
-      {video.status === "ready" && !tiktokConnected && (
-        <p className="hint">Connect TikTok above to post this video.</p>
+      {video.status === "posted" && video.publishId && (
+        <p className="publish-id">publish_id: {video.publishId}</p>
       )}
     </div>
   );

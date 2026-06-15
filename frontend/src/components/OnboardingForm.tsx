@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { onboard } from "../api";
+import { getFirestore, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { auth } from "../firebase";
+
+const db = getFirestore();
 
 interface Props {
   onComplete: () => void;
@@ -16,7 +19,13 @@ export default function OnboardingForm({ onComplete }: Props) {
     setError("");
     setLoading(true);
     try {
-      await onboard(productDescription, videoStyle);
+      const uid = auth.currentUser?.uid;
+      if (!uid) throw new Error("Not signed in");
+      await setDoc(doc(db, "users", uid), {
+        productDescription,
+        videoStyle,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
       onComplete();
     } catch (err: any) {
       setError(err.message);

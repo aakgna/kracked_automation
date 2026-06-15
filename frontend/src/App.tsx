@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { signInWithPopup, onAuthStateChanged, signOut } from "firebase/auth";
 import type { User } from "firebase/auth";
+import { getFirestore, doc, getDoc } from "firebase/firestore";
 import { auth, googleProvider } from "./firebase";
-import { getMe } from "./api";
 import OnboardingForm from "./components/OnboardingForm";
 import Dashboard from "./components/Dashboard";
 import Footer from "./components/Footer";
 import PolicyPage from "./pages/PolicyPage";
 import "./App.css";
+
+const db = getFirestore();
 
 type AppState = "loading" | "signed-out" | "onboarding" | "dashboard" | "error";
 
@@ -35,11 +37,19 @@ export default function App() {
 
   async function loadProfile() {
     try {
-      const data = await getMe();
-      setProfile(data);
+      const uid = auth.currentUser?.uid;
+      if (!uid) { setAppState("signed-out"); return; }
+      const snap = await getDoc(doc(db, "users", uid));
+      const data = snap.exists() ? snap.data() : {};
+      setProfile({
+        uid,
+        productDescription: data.productDescription ?? null,
+        videoStyle: data.videoStyle ?? null,
+        tiktokConnected: !!data.tiktokToken,
+      });
       setAppState(data.productDescription ? "dashboard" : "onboarding");
     } catch (e: any) {
-      setApiError(e.message ?? "Failed to reach backend. Check VITE_API_URL.");
+      setApiError(e.message ?? "Failed to load profile");
       setAppState("error");
     }
   }

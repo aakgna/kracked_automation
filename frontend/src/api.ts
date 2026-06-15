@@ -1,7 +1,5 @@
 import { auth } from "./firebase";
 
-// In dev, Vite proxies /api → localhost:5000.
-// In prod (Vercel), set VITE_API_URL=https://your-app.onrender.com
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
 async function authHeader(): Promise<Record<string, string>> {
@@ -35,42 +33,24 @@ export async function onboard(productDescription: string, videoStyle: string) {
   return r.json();
 }
 
-export async function getTikTokAuthUrl(): Promise<string> {
-  const r = await apiFetch("/api/auth/tiktok/start");
-  if (!r.ok) throw new Error(await r.text());
-  const data = await r.json();
-  return data.url;
-}
-
-export async function disconnectTikTok() {
-  const r = await apiFetch("/api/auth/tiktok", { method: "DELETE" });
+export async function getTikTokAuthUrl(uid: string): Promise<{ url: string; state: string; codeVerifier: string }> {
+  const r = await fetch(`/api/tiktok-start?uid=${uid}`);
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
 
-export async function generateVideo(mode: "pika" | "brainrot" = "pika"): Promise<{ videoId: string }> {
-  const r = await apiFetch("/api/videos/generate", {
+export async function disconnectTikTok(uid: string) {
+  const { getFirestore, doc, updateDoc, deleteField } = await import("firebase/firestore");
+  const db = getFirestore();
+  await updateDoc(doc(db, "users", uid), { tiktokToken: deleteField() });
+}
+
+export async function postVideoToTikTok(uid: string, videoUrl: string, caption: string): Promise<{ publishId: string }> {
+  const r = await fetch("/api/tiktok-post", {
     method: "POST",
-    body: JSON.stringify({ mode }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ uid, videoUrl, caption }),
   });
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
-}
-
-export async function getVideoStatus(videoId: string) {
-  const r = await apiFetch(`/api/videos/${videoId}/status`);
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
-}
-
-export async function postVideo(videoId: string) {
-  const r = await apiFetch(`/api/videos/${videoId}/post`, { method: "POST" });
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
-}
-
-export async function listVideos() {
-  const r = await apiFetch("/api/videos");
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) throw new Error(await r.json().then((d) => d.error).catch(() => r.statusText));
   return r.json();
 }
