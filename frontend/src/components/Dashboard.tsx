@@ -6,6 +6,7 @@ import { generateAudio } from "../services/elevenLabsService";
 import { fetchBrainrotVideoUrl } from "../services/pexelsService";
 import { composeVideo } from "../services/videoComposer";
 import { getTikTokAuthUrl, disconnectTikTok } from "../api";
+import { fetchBackgroundMusicUrl } from "../services/musicService";
 import VideoCard from "./VideoCard";
 
 interface Props {
@@ -86,11 +87,11 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
       setProgress("Generating audio & fetching video…");
       await update({ status: "generating_av" });
 
-      const [audioResult, videoUrl] = await Promise.all([
+      const jamendoId = import.meta.env.VITE_JAMENDO_CLIENT_ID ?? "";
+      const [audioResult, videoUrl, musicUrl] = await Promise.all([
         generateAudio(script, elVoice, elKey),
-        mode === "brainrot"
-          ? fetchBrainrotVideoUrl(pexelsKey)
-          : Promise.resolve(""),  // Pika mode: placeholder, use pikaPrompt with fal
+        mode === "brainrot" ? fetchBrainrotVideoUrl(pexelsKey) : Promise.resolve(""),
+        jamendoId ? fetchBackgroundMusicUrl(jamendoId) : Promise.resolve(null),
       ]);
 
       // Stage 3: Compose
@@ -102,6 +103,8 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
         audioResult.audioBlob,
         audioResult.wordTimestamps,
         audioResult.duration,
+        musicUrl,
+        0.15,
         (r) => setComposeProgress(Math.round(r * 100))
       );
 

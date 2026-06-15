@@ -60,6 +60,8 @@ export async function composeVideo(
   audioBlob: Blob,
   wordTimestamps: WordTimestamp[],
   audioDuration: number,
+  musicUrl: string | null = null,
+  musicVolume = 0.15,
   onProgress?: (ratio: number) => void
 ): Promise<Blob> {
   await load();
@@ -69,24 +71,44 @@ export async function composeVideo(
   await ffmpeg.writeFile("input.mp4", await fetchFile(videoUrl));
   await ffmpeg.writeFile("audio.mp3", await fetchFile(audioBlob));
 
+  const hasMusic = !!musicUrl;
+  if (hasMusic) await ffmpeg.writeFile("music.mp3", await fetchFile(musicUrl!));
+
   const hasSubs = wordTimestamps.length > 0;
-  if (hasSubs) {
-    const ass = buildAssSubtitles(wordTimestamps);
-    await ffmpeg.writeFile("subs.ass", ass);
-  }
+  if (hasSubs) await ffmpeg.writeFile("subs.ass", buildAssSubtitles(wordTimestamps));
 
   const subFilter = hasSubs ? `,subtitles=subs.ass` : "";
-  const filterComplex = [
-    `[0:v]crop=ih*9/16:ih,scale=1080:1920,fps=30[vid]`,
-    `[vid]trim=duration=${audioDuration}${subFilter}[vout]`,
-  ].join(";");
 
-  await ffmpeg.exec([
+  let filterComplex: string;
+  let mapArgs: string[];
+
+  if (hasMusic) {
+    filterComplex = [
+      `[0:v]crop=ih*9/16:ih,scale=1080:1920,fps=30[vid]`,
+      `[vid]trim=duration=${audioDuration}${subFilter}[vout]`,
+      `[1:a]volume=1.0[voice]`,
+      `[2:a]volume=${musicVolume}[music]`,
+      `[voice][music]amix=inputs=2:duration=shortest[aout]`,
+    ].join(";");
+    mapArgs = ["-map", "[vout]", "-map", "[aout]"];
+  } else {
+    filterComplex = [
+      `[0:v]crop=ih*9/16:ih,scale=1080:1920,fps=30[vid]`,
+      `[vid]trim=duration=${audioDuration}${subFilter}[vout]`,
+    ].join(";");
+    mapArgs = ["-map", "[vout]", "-map", "1:a"];
+  }
+
+  const inputs = [
     "-stream_loop", "-1", "-an", "-i", "input.mp4",
     "-i", "audio.mp3",
+    ...(hasMusic ? ["-stream_loop", "-1", "-i", "music.mp3"] : []),
+  ];
+
+  await ffmpeg.exec([
+    ...inputs,
     "-filter_complex", filterComplex,
-    "-map", "[vout]",
-    "-map", "1:a",
+    ...mapArgs,
     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
     "-pix_fmt", "yuv420p",
     "-c:a", "aac", "-b:a", "128k",
