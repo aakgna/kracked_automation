@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { getFirestore, collection, addDoc, doc, updateDoc, onSnapshot, query, where, orderBy, limit, serverTimestamp } from "firebase/firestore";
+import { getFirestore, collection, addDoc, doc, updateDoc, onSnapshot, query, where, serverTimestamp } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { generateScript, generateCaption, generatePikaPrompt } from "../services/claudeService";
 import { generateAudio } from "../services/elevenLabsService";
@@ -37,12 +37,14 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
   useEffect(() => {
     const q = query(
       collection(db, "videos"),
-      where("userId", "==", user.uid),
-      orderBy("createdAt", "desc"),
-      limit(20)
+      where("userId", "==", user.uid)
     );
     const unsub = onSnapshot(q, (snap) => {
-      setVideos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const sorted = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() } as any))
+        .sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0))
+        .slice(0, 20);
+      setVideos(sorted);
     });
     unsubRef.current = unsub;
     return () => unsub();
