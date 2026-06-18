@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
-import { signInWithPopup, onAuthStateChanged, signOut } from "firebase/auth";
+import { onAuthStateChanged, signOut as fbSignOut } from "firebase/auth";
 import type { User } from "firebase/auth";
 import { getFirestore, doc, onSnapshot } from "firebase/firestore";
-import { auth, googleProvider } from "./firebase";
+import { auth } from "./firebase";
 import OnboardingForm from "./components/OnboardingForm";
 import Dashboard from "./components/Dashboard";
 import Footer from "./components/Footer";
 import PolicyPage from "./pages/PolicyPage";
 import TikTokCallbackPage from "./pages/TikTokCallbackPage";
+import LoginPage from "./pages/LoginPage";
+import UserMenu from "./components/UserMenu";
 import "./App.css";
 
 const db = getFirestore();
@@ -19,7 +21,13 @@ export default function App() {
   if (path === "/privacy-policy") return <PolicyPage page="privacy" />;
   if (path === "/terms-of-service") return <PolicyPage page="terms" />;
   if (path === "/callback") return <TikTokCallbackPage />;
+  if (path === "/login") return <LoginPage />;
 
+  return <AuthenticatedApp />;
+}
+
+function AuthenticatedApp() {
+  const path = window.location.pathname;
   const [fbUser, setFbUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [appState, setAppState] = useState<AppState>("loading");
@@ -58,18 +66,6 @@ export default function App() {
 
   function loadProfile() { /* profile is now live via onSnapshot */ }
 
-  async function handleSignIn() {
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  async function handleSignOut() {
-    await signOut(auth);
-  }
-
   if (appState === "loading") {
     return <div className="center"><div className="spinner" /></div>;
   }
@@ -79,26 +75,17 @@ export default function App() {
       <div className="center" style={{ flexDirection: "column", gap: 12, padding: 32 }}>
         <p style={{ color: "#ff6b6b", fontWeight: 600 }}>Backend connection failed</p>
         <p style={{ color: "#888", fontSize: 13 }}>{apiError}</p>
-        <button className="btn-ghost" onClick={() => signOut(auth)}>Sign out</button>
+        <button className="btn-ghost" onClick={() => fbSignOut(auth)}>Sign out</button>
       </div>
     );
   }
 
   if (appState === "signed-out") {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-        <div className="landing" style={{ flex: 1 }}>
-          <div className="landing-card">
-            <h1>TikTok Video Creator</h1>
-            <p>Generate AI-powered TikTok videos for your product and post them directly.</p>
-            <button className="btn-primary btn-large" onClick={handleSignIn}>
-              Sign in with Google
-            </button>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
+    if (path !== "/login") {
+      window.location.replace("/login");
+      return null;
+    }
+    return <LoginPage />;
   }
 
   return (
@@ -106,8 +93,7 @@ export default function App() {
       <header className="app-header">
         <span className="app-logo">VideoCreator</span>
         <div className="header-right">
-          <span className="user-email">{fbUser?.email}</span>
-          <button className="btn-ghost" onClick={handleSignOut}>Sign out</button>
+          <UserMenu email={fbUser?.email ?? null} />
         </div>
       </header>
 

@@ -121,6 +121,68 @@ button:not(:disabled):active { transform: scale(.97); }
 .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ---------- User menu dropdown ---------- */
+.user-menu { position: relative; }
+
+.user-menu-trigger {
+  display: flex; align-items: center; gap: 4px;
+  max-width: 200px;
+}
+.user-email-truncate {
+  max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 13px; color: var(--text-muted);
+}
+
+.user-menu-dropdown {
+  position: absolute; right: 0; top: calc(100% + 6px);
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); min-width: 180px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4); z-index: 100;
+  overflow: hidden;
+}
+
+.user-menu-item {
+  display: block; width: 100%; text-align: left;
+  background: transparent; color: var(--text); border: none;
+  border-radius: 0; padding: 11px 16px; font-size: 14px; font-weight: 500;
+}
+.user-menu-item:hover { background: var(--surface); }
+
+.user-menu-item-danger { color: #ff6b6b; }
+.user-menu-item-danger:hover { background: #2a0a0a; }
+
+.user-menu-divider { height: 1px; background: var(--border); margin: 2px 0; }
+
+.user-menu-confirm { padding: 14px 16px; }
+.user-menu-confirm p { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4; }
+.user-menu-error { color: #ff6b6b !important; font-size: 12px !important; margin-bottom: 10px !important; }
+.user-menu-confirm-actions { display: flex; gap: 8px; }
+
+.user-menu-item-danger-btn {
+  background: #c0392b; color: #fff; border: none;
+  border-radius: 7px; padding: 7px 14px; font-size: 13px; font-weight: 600;
+  cursor: pointer; flex: 1;
+}
+.user-menu-item-danger-btn:disabled { opacity: .5; cursor: not-allowed; }
+.user-menu-item-danger-btn:not(:disabled):hover { background: #e74c3c; }
+
+/* ---------- Auth divider ---------- */
+.auth-divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 20px 0; color: var(--text-muted); font-size: 13px;
+}
+.auth-divider::before, .auth-divider::after {
+  content: ""; flex: 1; height: 1px; background: var(--border);
+}
+
+/* ---------- Google button ---------- */
+.btn-google {
+  background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); padding: 12px 24px;
+  font-size: 15px; display: flex; align-items: center; justify-content: center;
+}
+.btn-google:not(:disabled):hover { border-color: var(--text-muted); }
+
 /* ---------- Mode toggle ---------- */
 .mode-toggle { display: inline-flex; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 4px; gap: 4px; margin-bottom: 12px; }
 .mode-btn { background: transparent; color: var(--text-muted); border: none; border-radius: 7px; padding: 8px 20px; font-size: 14px; font-weight: 600; transition: background .15s, color .15s; }
