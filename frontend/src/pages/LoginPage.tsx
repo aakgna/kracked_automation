@@ -24,6 +24,7 @@ export default function LoginPage() {
       } else {
         await createUserWithEmailAndPassword(auth, email, password);
       }
+      window.location.replace("/");
     } catch (err: any) {
       setError(friendlyError(err.code));
     } finally {
@@ -35,6 +36,7 @@ export default function LoginPage() {
     setError("");
     try {
       await signInWithPopup(auth, googleProvider);
+      window.location.replace("/");
     } catch (err: any) {
       if (err.code !== "auth/popup-closed-by-user") {
         setError(friendlyError(err.code));
