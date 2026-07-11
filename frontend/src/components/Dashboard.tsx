@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { getFirestore, collection, addDoc, doc, updateDoc, onSnapshot, query, where, serverTimestamp } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { generateScript, generateCaption, generateKlingStoryboard, generateCarouselPlan, generateHeroImagePlan } from "../services/claudeService";
+import { generateScript, generateCaption, generateKlingStoryboard, generateCarouselPlan, generateHeroImagePlan, generatePodcastPlan, buildPodcastScenePrompt } from "../services/claudeService";
 import { generateAudio } from "../services/elevenLabsService";
 import { fetchBrainrotVideoUrls } from "../services/pexelsService";
-import { composeVideo } from "../services/videoComposer";
-import { generateVideoClips, generateImages, generateHeroImage, generateImageToVideoClips } from "../services/klingService";
+import { composeVideo, stitchClipsWithAudio } from "../services/videoComposer";
+import { generateVideoClips, generateImages, generateHeroImage, generateImageToVideoClips, generatePodcastClips } from "../services/klingService";
 import { getTikTokAuthUrl, disconnectTikTok } from "../api";
 import { fetchBackgroundMusicUrl } from "../services/musicService";
 import VideoCard from "./VideoCard";
@@ -20,13 +20,14 @@ interface Props {
   onRefreshUser: () => void;
 }
 
-type Mode = "brainrot" | "kling-video" | "kling-carousel" | "kling-i2v";
+type Mode = "brainrot" | "kling-video" | "kling-carousel" | "kling-i2v" | "kling-podcast";
 
 const MODE_HINTS: Record<Mode, string> = {
   "brainrot": "Subway Surfers · Minecraft · Jetpack Joyride background",
   "kling-video": "Kling AI renders a 3-4 scene brand film from a Claude storyboard",
   "kling-carousel": "Kling AI generates a 3-5 image photo carousel",
   "kling-i2v": "Kling AI designs a hero image, then animates it into a film",
+  "kling-podcast": "Talking-head podcast clip — Kling 2.6 generates the host's voice, fresh topic every run",
 };
 
 const db = getFirestore();
@@ -85,6 +86,8 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
     try {
       if (mode === "kling-carousel") {
         await runCarouselFlow(videoId, update);
+      } else if (mode === "kling-podcast") {
+        await runPodcastFlow(videoId, update);
       } else if (mode === "brainrot") {
         await runBrainrotFlow(videoId, update);
       } else {
@@ -196,6 +199,15 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
       (r) => setComposeProgress(Math.round(r * 100))
     );
 
+    await uploadAndPublish(videoId, update, videoBlob, caption);
+  }
+
+  async function uploadAndPublish(
+    videoId: string,
+    update: (f: Record<string, any>) => Promise<void>,
+    videoBlob: Blob,
+    caption: string
+  ) {
     // Stage 4: Upload to Firebase Storage
     setProgress("Uploading…");
     const storageRef = ref(storage, `videos/${user.uid}/${videoId}.mp4`);
@@ -211,6 +223,33 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
       await update({ status: "posted", publishId, videoUrl: null });
       await deleteObject(storageRef).catch(() => {});
     }
+  }
+
+  async function runPodcastFlow(videoId: string, update: (f: Record<string, any>) => Promise<void>) {
+    // Stage 1: Episode spec — one topic per run, host + studio + segmented dialogue
+    setProgress("Writing the episode…");
+    await update({ status: "generating_storyboard" });
+    const plan = await generatePodcastPlan(user.productDescription);
+    await update({
+      caption: plan.caption,
+      script: plan.segments.map((s) => s.dialogue).join(" "),
+      storyboard: JSON.stringify(plan),
+    });
+
+    // Stage 2: Kling 2.6 renders picture + the host's voice in one pass
+    const prompts = plan.segments.map((_, i) => buildPodcastScenePrompt(plan, i));
+    setProgress(`Filming segment 1/${prompts.length} with Kling 2.6…`);
+    await update({ status: "generating_media" });
+    const clips = await generatePodcastClips(user.uid, videoId, prompts, (done, total) =>
+      setProgress(`Filming segment ${Math.min(done + 1, total)}/${total} with Kling 2.6…`)
+    );
+
+    // Stage 3: Stitch clips keeping their generated audio (no voiceover, no music)
+    setProgress("Stitching the episode…");
+    await update({ status: "composing" });
+    const videoBlob = await stitchClipsWithAudio(clips.urls, (r) => setComposeProgress(Math.round(r * 100)));
+
+    await uploadAndPublish(videoId, update, videoBlob, plan.caption);
   }
 
   async function runCarouselFlow(videoId: string, update: (f: Record<string, any>) => Promise<void>) {
@@ -303,6 +342,12 @@ export default function Dashboard({ user, onRefreshUser }: Props) {
             onClick={() => setMode("kling-i2v")}
           >
             ✨ Image→Video
+          </button>
+          <button
+            className={mode === "kling-podcast" ? "mode-btn mode-btn-active" : "mode-btn"}
+            onClick={() => setMode("kling-podcast")}
+          >
+            🎙️ Podcast
           </button>
         </div>
         <p className="hint" style={{ marginBottom: 12 }}>{MODE_HINTS[mode]}</p>

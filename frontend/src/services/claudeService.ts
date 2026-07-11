@@ -240,3 +240,124 @@ Return the plan as JSON.`,
   plan.motionPrompts = plan.motionPrompts.map((p) => (p.length > 2500 ? p.slice(0, 2500) : p));
   return plan;
 }
+
+// ---------------------------------------------------------------------------
+// Podcast mode — Kling 2.6 native audio, no ElevenLabs. Claude designs one
+// consistent host + studio and splits a monologue into per-clip dialogue.
+// ---------------------------------------------------------------------------
+
+const PODCAST_SYSTEM = `You are the showrunner of a viral talking-head podcast for Kracked (kracked.app), an app that trains focus and attention.
+
+You write structured video specifications for an AI video generator (Kling 2.6) that renders both the picture AND the host's voice: any text wrapped in double quotes inside the prompt is spoken aloud by the on-screen person, lip-synced. Non-negotiable rules:
+
+- PODCAST STYLE, ALWAYS: one charismatic host at a podcast desk, close framing, large broadcast microphone, headphones optional, warm dim studio with practical lights and soft background bokeh. It must instantly read as a podcast clip, never a commercial.
+- ONE HOST, PERFECTLY CONSISTENT: write a single detailed physical description of the host (age, ethnicity, hair, facial hair, clothing, posture) and a single studio description. Both are reused VERBATIM in every segment so the clips cut together as one continuous take.
+- DIALOGUE IS THE PRODUCT: conversational, direct-to-camera, podcast cadence — hooks, rhetorical questions, punchy claims backed by a concrete mechanism (dopamine loops, attention residue, average scroll session length), then the turn: how Kracked trains attention instead. Never sound like an ad read.
+- SPEECH PACING: people speak roughly 2.3 words per second. Each 10-second segment gets AT MOST 22 words of dialogue — count them. Overrunning dialogue gets cut off mid-sentence.
+- 9:16 VERTICAL, subject centered, eye contact with the lens.
+- NO on-screen text, captions, or logos.`;
+
+export interface PodcastSegment {
+  dialogue: string;
+  action: string;
+  camera: string;
+}
+
+export interface PodcastPlan {
+  topic: string;
+  caption: string;
+  host: string;
+  studio: string;
+  segments: PodcastSegment[];
+}
+
+const PODCAST_SCHEMA = {
+  type: "object",
+  properties: {
+    topic: { type: "string", description: "The one angle this episode clip argues, in a short phrase." },
+    caption: { type: "string", description: "TikTok caption under 150 characters with 3-5 hashtags." },
+    host: {
+      type: "string",
+      description: "Detailed physical description of the single host, reused verbatim across segments.",
+    },
+    studio: {
+      type: "string",
+      description: "Detailed podcast studio set description, reused verbatim across segments.",
+    },
+    segments: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          dialogue: { type: "string", description: "What the host says in this 10s clip. 22 words maximum." },
+          action: { type: "string", description: "The host's physical behaviour while speaking (gestures, lean-ins, pauses)." },
+          camera: { type: "string", description: "Framing and camera move for this segment." },
+        },
+        required: ["dialogue", "action", "camera"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["topic", "caption", "host", "studio", "segments"],
+  additionalProperties: false,
+};
+
+const PODCAST_TOPICS = [
+  "why TikTok's algorithm is engineered against your attention span",
+  "what doomscrolling on Instagram does to your dopamine baseline",
+  "why YouTube Shorts leave you unable to watch anything longer than a minute",
+  "attention residue — why you can't focus after 'just checking' your phone",
+  "the average person scrolls for hours a day without remembering any of it",
+  "how attention is a trainable skill, like a muscle",
+  "how Kracked rebuilds your focus while the apps fight to break it",
+  "why deleting the apps fails but retraining your brain works",
+];
+
+const MAX_SEGMENT_WORDS = 22;
+
+export async function generatePodcastPlan(productDescription: string): Promise<PodcastPlan> {
+  const seed = Math.floor(Math.random() * PODCAST_TOPICS.length);
+  const basePrompt = `Write this episode clip's spec for the product: "${productDescription}".
+
+Pick ONE angle for this clip — start from this seed topic and sharpen it into a specific, surprising claim: "${PODCAST_TOPICS[seed]}". Do not cover multiple topics; one clip, one idea, argued well.
+
+Structure exactly 3 segments (10 seconds each, 30s total):
+1. The hook — a claim or question that stops the scroll.
+2. The mechanism — the concrete reason it's true.
+3. The turn — what to do about it, where Kracked comes in, and a natural sign-off.
+
+Dialogue must flow as ONE continuous monologue across the 3 segments — each segment picks up mid-thought where the previous ended. HARD LIMIT: ${MAX_SEGMENT_WORDS} words of dialogue per segment — count every segment's words before returning and trim until each is under the limit, or the clip cuts the host off mid-sentence. Return the spec as JSON.`;
+
+  const wordCount = (s: string) => s.trim().split(/\s+/).length;
+  let plan: PodcastPlan | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    plan = await askJson<PodcastPlan>(
+      attempt === 0
+        ? basePrompt
+        : `${basePrompt}\n\nYour previous attempt exceeded the per-segment word limit. Rewrite with every segment at ${MAX_SEGMENT_WORDS} words or fewer.`,
+      PODCAST_SYSTEM,
+      PODCAST_SCHEMA
+    );
+    if (!plan.segments?.length || !plan.host || !plan.studio) throw new Error("Podcast plan came back empty");
+    plan.segments = plan.segments.slice(0, 4);
+    if (plan.segments.every((s) => wordCount(s.dialogue) <= MAX_SEGMENT_WORDS + 2)) break;
+  }
+  return plan!;
+}
+
+// Serializes one segment into a structured JSON-style Kling prompt. Quoted
+// dialogue in the trailing line is what Kling 2.6 lip-syncs and voices.
+export function buildPodcastScenePrompt(plan: PodcastPlan, index: number): string {
+  const seg = plan.segments[index];
+  const spec = {
+    style: "authentic podcast clip, vertical 9:16, filmed on a cinema camera",
+    subject: plan.host,
+    scene: plan.studio,
+    camera: seg.camera,
+    action: seg.action,
+    audio: "clean close-mic podcast vocal, quiet room tone, no music",
+    continuity: index === 0 ? "opening of the clip" : "direct continuation of the previous shot — identical host, studio, lighting and framing",
+  };
+  const prompt = `${JSON.stringify(spec, null, 1)}\nThe host looks into the camera and says: "${seg.dialogue}"`;
+  return prompt.length > 2500 ? prompt.slice(0, 2500) : prompt;
+}
