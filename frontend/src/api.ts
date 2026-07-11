@@ -54,3 +54,21 @@ export async function postVideoToTikTok(uid: string, videoUrl: string, caption: 
   if (!r.ok) throw new Error(await r.json().then((d) => d.error).catch(() => r.statusText));
   return r.json();
 }
+
+// TikTok PULL_FROM_URL requires image URLs on our verified /api/media/ prefix,
+// so photo posts send proxy URLs built from Storage paths (media/{uid}/{mediaId}.{ext}).
+export function mediaProxyUrl(storagePath: string): string {
+  const parts = storagePath.split("/"); // ["media", uid, "{mediaId}.{ext}"]
+  return `${window.location.origin}/api/media/${parts[1]}__${parts[2]}`;
+}
+
+export async function postPhotosToTikTok(uid: string, imagePaths: string[], caption: string): Promise<{ publishId: string }> {
+  const photoUrls = imagePaths.map(mediaProxyUrl);
+  const r = await fetch("/api/tiktok-post-photos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ uid, photoUrls, caption }),
+  });
+  if (!r.ok) throw new Error(await r.json().then((d) => d.error).catch(() => r.statusText));
+  return r.json();
+}
