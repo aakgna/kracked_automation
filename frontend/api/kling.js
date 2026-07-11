@@ -16,6 +16,7 @@ const ALLOWED_DURATIONS = ["5", "10"];
 const ALLOWED_ASPECT_RATIOS = ["9:16", "16:9", "1:1"];
 const MAX_IMAGES_N = 5;
 
+// Legacy auth only — new Kling API keys are sent directly as the Bearer token.
 function buildJwt(accessKey, secretKey) {
   const b64url = (obj) =>
     Buffer.from(JSON.stringify(obj)).toString("base64url");
@@ -27,6 +28,14 @@ function buildJwt(accessKey, secretKey) {
     .update(`${header}.${payload}`)
     .digest("base64url");
   return `${header}.${payload}.${signature}`;
+}
+
+function bearerToken() {
+  if (process.env.KLING_API_KEY) return process.env.KLING_API_KEY;
+  const accessKey = process.env.KLING_ACCESS_KEY;
+  const secretKey = process.env.KLING_SECRET_KEY;
+  if (accessKey && secretKey) return buildJwt(accessKey, secretKey);
+  return null;
 }
 
 function sanitizeCreateBody(type, body) {
@@ -65,10 +74,9 @@ function sanitizeCreateBody(type, body) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const accessKey = process.env.KLING_ACCESS_KEY;
-  const secretKey = process.env.KLING_SECRET_KEY;
-  if (!accessKey || !secretKey) {
-    return res.status(500).json({ error: "Kling API keys not configured" });
+  const token = bearerToken();
+  if (!token) {
+    return res.status(500).json({ error: "Kling API key not configured" });
   }
 
   const { action, type, taskId, body } = req.body ?? {};
@@ -76,7 +84,7 @@ export default async function handler(req, res) {
   if (!path) return res.status(400).json({ error: `Unknown type: ${type}` });
 
   const headers = {
-    Authorization: `Bearer ${buildJwt(accessKey, secretKey)}`,
+    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   };
 
