@@ -160,3 +160,98 @@ export async function composeVideo(
 
   return new Blob(chunks, { type: mimeType });
 }
+
+// Podcast mode: the clips carry their own generated audio (Kling 2.6 sound),
+// so instead of a voiceover we decode each clip's audio track, schedule the
+// buffers back-to-back, and drive clip switching off the audio clock so the
+// picture stays locked to the speech. No captions (no word timestamps exist).
+export async function stitchClipsWithAudio(
+  videoUrls: string[],
+  onProgress?: (ratio: number) => void
+): Promise<Blob> {
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+
+  // Fetch each clip once; the bytes feed both the video element and the audio decode
+  const buffers = await Promise.all(
+    videoUrls.map(async (url) => {
+      const resp = await fetch(url);
+      return resp.arrayBuffer();
+    })
+  );
+  const blobUrls = buffers.map((b) => URL.createObjectURL(new Blob([b], { type: "video/mp4" })));
+  const videoEls = await Promise.all(blobUrls.map(loadVideoEl));
+
+  const audioCtx = new AudioContext();
+  await audioCtx.resume().catch(() => {});
+  const dest = audioCtx.createMediaStreamDestination();
+  const audioBuffers = await Promise.all(buffers.map((b) => audioCtx.decodeAudioData(b.slice(0))));
+
+  // Cumulative timeline: clip i's audio starts where clip i-1's ends
+  const clipStarts: number[] = [];
+  let totalDuration = 0;
+  for (const ab of audioBuffers) {
+    clipStarts.push(totalDuration);
+    totalDuration += ab.duration;
+  }
+
+  const mimeType =
+    ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm"]
+      .find(t => MediaRecorder.isTypeSupported(t)) ?? "video/webm";
+
+  const stream = new MediaStream([
+    ...canvas.captureStream(FPS).getVideoTracks(),
+    ...dest.stream.getAudioTracks(),
+  ]);
+
+  const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2_500_000 });
+  const chunks: Blob[] = [];
+  recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+  recorder.start(100);
+
+  const startTime = audioCtx.currentTime + 0.1;
+  audioBuffers.forEach((ab, i) => {
+    const src = audioCtx.createBufferSource();
+    src.buffer = ab;
+    src.connect(dest);
+    src.start(startTime + clipStarts[i]);
+  });
+
+  let clipIdx = 0;
+  await videoEls[0].play();
+
+  await new Promise<void>((resolve) => {
+    const draw = () => {
+      const elapsed = audioCtx.currentTime - startTime;
+      if (elapsed >= totalDuration) { resolve(); return; }
+
+      onProgress?.(Math.max(elapsed, 0) / totalDuration);
+
+      // Switch clips on the audio clock, not on 'ended', so AV stays in sync
+      let target = clipIdx;
+      while (target < videoEls.length - 1 && elapsed >= clipStarts[target + 1]) target++;
+      if (target !== clipIdx) {
+        videoEls[clipIdx].pause();
+        clipIdx = target;
+        videoEls[clipIdx].currentTime = Math.max(elapsed - clipStarts[clipIdx], 0);
+        videoEls[clipIdx].play();
+      }
+
+      drawFrame(ctx, videoEls[clipIdx], [], Math.max(elapsed, 0));
+      requestAnimationFrame(draw);
+    };
+    requestAnimationFrame(draw);
+  });
+
+  recorder.stop();
+  videoEls.forEach(v => v.pause());
+  blobUrls.forEach(u => URL.revokeObjectURL(u));
+  await audioCtx.close();
+
+  await new Promise<void>((res) => { recorder.onstop = () => res(); });
+
+  return new Blob(chunks, { type: mimeType });
+}

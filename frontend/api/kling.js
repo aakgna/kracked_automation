@@ -9,7 +9,7 @@ const ENDPOINTS = {
 };
 
 // Server-side whitelists so this proxy can't be abused for arbitrary spend
-const ALLOWED_VIDEO_MODELS = ["kling-v2-5-turbo", "kling-v2-1", "kling-v1-6"];
+const ALLOWED_VIDEO_MODELS = ["kling-v2-6", "kling-v2-5-turbo", "kling-v2-1", "kling-v1-6"];
 const ALLOWED_IMAGE_MODELS = ["kling-v2", "kling-v2-new", "kling-v1-5"];
 const ALLOWED_MODES = ["std", "pro"];
 const ALLOWED_DURATIONS = ["5", "10"];
@@ -64,6 +64,7 @@ function sanitizeCreateBody(type, body) {
     aspect_ratio: ALLOWED_ASPECT_RATIOS.includes(body.aspect_ratio) ? body.aspect_ratio : "9:16",
   };
   if (body.negative_prompt) out.negative_prompt = String(body.negative_prompt).slice(0, 2500);
+  if (["on", "off"].includes(body.sound)) out.sound = body.sound; // kling-v2-6+ native audio
   if (type === "image2video") {
     if (!body.image) throw new Error("image2video requires an image");
     out.image = String(body.image);

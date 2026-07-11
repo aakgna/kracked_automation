@@ -102,6 +102,37 @@ export async function generateVideoClips(
   return { urls: results.map((r) => r.storageUrl), paths: results.map((r) => r.storagePath) };
 }
 
+// Podcast mode: kling-v2-6 renders picture AND the host's voice (sound: "on"),
+// so these clips carry their own audio track — no ElevenLabs voiceover.
+export async function generatePodcastClips(
+  uid: string,
+  videoId: string,
+  prompts: string[],
+  onProgress?: (done: number, total: number) => void
+): Promise<MaterializedMedia> {
+  const total = prompts.length;
+  let done = 0;
+  const results = await Promise.all(
+    prompts.map(async (prompt, i) => {
+      const result = await runVideoTask(
+        "text2video",
+        {
+          model_name: "kling-v2-6",
+          sound: "on",
+          prompt,
+          duration: "10",
+          aspect_ratio: "9:16",
+        },
+        uid,
+        `${videoId}_clip${i}`
+      );
+      onProgress?.(++done, total);
+      return result;
+    })
+  );
+  return { urls: results.map((r) => r.storageUrl), paths: results.map((r) => r.storagePath) };
+}
+
 export async function generateImages(
   uid: string,
   videoId: string,
